@@ -1,5 +1,5 @@
 {
-  "name": "@mixer/postmessage-rpc",
+  "name": "postmessage-rpc",
   "version": "1.1.4-wiwo.1",
   "description": "Remote procedure call layer between browser contexts",
   "main": "dist/rpc.js",
