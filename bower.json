@@ -1,0 +1,6 @@
+{
+  "name": "postmessage-rpc",
+  "dependencies": {
+    "eventemitter3": "git@github.com:widgetworks/eventemitter3.git#^v4.0.7-wiwo.1"
+  }
+}
