@@ -1,6 +1,6 @@
 {
   "name": "postmessage-rpc",
-  "version": "1.1.4-wiwo.1",
+  "version": "1.1.5-wiwo.1",
   "description": "Remote procedure call layer between browser contexts",
   "main": "dist/rpc.js",
   "typings": "dist/rpc.d.ts",
