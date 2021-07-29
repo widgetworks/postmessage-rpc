@@ -15,9 +15,8 @@
       "dom"
     ],
     "types": [
-      "mocha",
-      "node",
-      "chai-subset"
+      "jest",
+      "node"
     ]
   },
   "include": [

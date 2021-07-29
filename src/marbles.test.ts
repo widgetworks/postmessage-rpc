@@ -1,9 +1,5 @@
-import { expect, use } from 'chai';
 import { RPC } from './rpc';
 import { IMessageEvent, RPCMessage } from './types';
-
-// tslint:disable-next-line
-use(require('chai-subset'));
 
 /**
  * Function that returns a delay of the requested number of milliseconds.
@@ -49,9 +45,9 @@ function testMethod(charDef: string, def: Definition, message: RPCMessage<any> |
   }
 
   if ('subset' in def) {
-    expect(message).to.containSubset(def.subset);
+    expect(message).toEqual(expect.objectContaining(def.subset));
   } else if ('object' in def) {
-    expect(message).to.deep.equal(def.object, `expected objects in def ${charDef} to be equal`);
+    expect(message).toEqual(def.object);
   } else {
     def.tester(message);
   }
@@ -140,9 +136,8 @@ export async function testMarbles({
       } else if (def.action === Action.Receive) {
         testMethod(rpcInstance[i], def, messagesReceivedByRPC.shift());
       } else if (def.action === Action.IsReady) {
-        expect(isReady).to.equal(
-          def.value,
-          `expected the rpc.ready=${def.value} by ${rpcInstance[i]}, but it was not`,
+        expect(isReady).toEqual(
+          def.value
         );
       }
     }
@@ -164,5 +159,5 @@ export async function testMarbles({
   }
 
   rpc.destroy();
-  expect(toreDown).to.be.true;
+  expect(toreDown).toEqual(true);
 }

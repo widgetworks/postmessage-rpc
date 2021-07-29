@@ -1,5 +1,3 @@
-// import { expect } from 'chai';
-
 import { RPCError } from './error';
 import { Action, Definition, testMarbles } from './marbles.test';
 
