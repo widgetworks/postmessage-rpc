@@ -54,7 +54,7 @@
     "webpack": "^4.17.1"
   },
   "dependencies": {
-    "eventemitter3": "^3.1.0"
+    "eventemitter3": "^3.1.2"
   },
   "prettier": {
     "trailingComma": "all",
