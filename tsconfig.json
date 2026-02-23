@@ -6,11 +6,10 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "skipLibCheck": true,
-    "noStrictGenericChecks": true,
     "esModuleInterop": true,
     "moduleResolution": "Node",
     "module": "ESNext",
-    "target": "es5",
+    "target": "ES2021",
     "outDir": "dist",
     "lib": [
       "es6",
