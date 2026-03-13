@@ -1,10 +1,11 @@
 {
   "name": "postmessage-rpc",
-  "version": "1.1.5-wiwo.1",
+  "version": "2.0.0",
   "description": "Remote procedure call layer between browser contexts",
   "main": "dist/rpc.js",
   "typings": "dist/rpc.d.ts",
   "scripts": {
+    "build": "tsc",
     "test": "npm-run-all --parallel --silent test:lint test:unit",
     "test:unit": "jest --config test/jest.config.js",
     "test:lint": "tslint -t verbose --project tsconfig.json \"src/**/*.ts\"",
@@ -36,9 +37,6 @@
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "ts-jest": "^29.4.6"
-  },
-  "dependencies": {
-    "eventemitter3": "^3.1.0"
   },
   "prettier": {
     "trailingComma": "all",

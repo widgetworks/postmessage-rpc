@@ -7,7 +7,7 @@
     "noUnusedParameters": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "moduleResolution": "Node",
+    "moduleResolution": "bundler",
     "module": "ESNext",
     "target": "ES2021",
     "outDir": "dist",

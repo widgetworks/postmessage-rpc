@@ -40,5 +40,8 @@ const rpc = new RPC({
   serviceId: 'my-awesome-service',
 });
 
+const result = await rpc.call('add', { a: 3, b: 5 });
+console.log('3 + 5 is', result);
+
 rpc.call('add', { a: 3, b: 5 }).then(result => console.log('3 + 5 is', result));
 ```

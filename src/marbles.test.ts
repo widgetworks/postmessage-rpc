@@ -108,7 +108,7 @@ export async function testMarbles({
     serviceId: 'foo',
   });
 
-  rpc.on('recvData', p => messagesReceivedByRPC.push(p));
+  rpc.on<RPCMessage<any>>('recvData', (event) => messagesReceivedByRPC.push(event.detail));
   rpc.on('isReady', () => (isReady = true));
 
   while (rpcInstance.length < remoteContx.length) {

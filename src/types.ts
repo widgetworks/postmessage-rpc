@@ -84,3 +84,5 @@ export const defaultRecievable: IReceivable = {
     return () => window.removeEventListener('message', callback);
   },
 };
+
+export type CustomEventListener<T = unknown> = (evt: CustomEvent<T>) => void;

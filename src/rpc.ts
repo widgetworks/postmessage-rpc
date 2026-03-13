@@ -1,8 +1,7 @@
-import { EventEmitter } from 'eventemitter3';
-
 import { RPCError } from './error';
 import { Reorder } from './reorder';
 import {
+  CustomEventListener,
   defaultRecievable,
   IMessageEvent,
   IPostable,
@@ -60,7 +59,7 @@ const magicReadyCallId = -1;
 /**
  * Primitive postMessage based RPC.
  */
-export class RPC extends EventEmitter {
+export class RPC extends EventTarget {
   /**
    * Promise that resolves once the RPC connection is established.
    */
@@ -92,6 +91,11 @@ export class RPC extends EventEmitter {
   private unsubscribeCallback: () => void;
 
   /**
+   * The name of all methods on this side that have been exposed to the other side.
+   */
+  private exposedMethods = new Set<string>();
+
+  /**
    * Creates a new RPC instance. Note: you should use the `rpc` singleton,
    * rather than creating this class directly, in your controls.
    */
@@ -120,9 +124,28 @@ export class RPC extends EventEmitter {
    * Create instantiates a new RPC instance and waits until it's ready
    * before returning.
    */
-  public create(options: IRPCOptions): Promise<RPC> {
+  public static create(options: IRPCOptions): Promise<RPC> {
     const rpc = new RPC(options);
     return rpc.isReady.then(() => rpc);
+  }
+
+  /**
+   * Shorthand for `addEventListener()` that only deals with to CustomEvents.
+   */
+  public on<T = unknown>(
+    type: string,
+    callback: CustomEventListener<T>,
+    options?: AddEventListenerOptions | boolean
+  ): void {
+    const cb = (_event: Event) => {
+      if (!('detail' in _event)){
+        // Skip invalid event call
+        return;
+      }
+      const event = _event as CustomEvent<T>;
+      callback(event);
+    };
+    this.addEventListener(type, cb, options)
   }
 
   /**
@@ -134,7 +157,9 @@ export class RPC extends EventEmitter {
    * @param {function(params: any): Promise.<*>|*} handler
    */
   public expose<T>(method: string, handler: (params: T) => Promise<any> | any): this {
-    this.on(method, (data: IRPCMethod<T>) => {
+    this.exposedMethods.add(method);
+    this.on(method, (event: CustomEvent<IRPCMethod<T>>) => {
+      const data: IRPCMethod<T> = event.detail;
       if (data.discard) {
         handler(data.params);
         return;
@@ -164,7 +189,10 @@ export class RPC extends EventEmitter {
             } as IRPCReply<any>),
         )
         .then(packet => {
-          this.emit('sendReply', packet);
+          const sendReplyEvent = new CustomEvent('sendReply', {
+            detail: packet,
+          });
+          this.dispatchEvent(sendReplyEvent);
           this.post(packet);
         });
     });
@@ -172,8 +200,8 @@ export class RPC extends EventEmitter {
     return this;
   }
 
-  public call<T>(method: string, params: object, waitForReply?: true): Promise<T>;
-  public call(method: string, params: object, waitForReply: false): void;
+  public async call<T>(method: string, params: object, waitForReply?: true): Promise<T>;
+  public async call(method: string, params: object, waitForReply: false): Promise<void>;
 
   /**
    * Makes an RPC call out to the target window.
@@ -184,7 +212,7 @@ export class RPC extends EventEmitter {
    * @return {Promise.<object> | undefined} If waitForReply is true, a
    * promise is returned that resolves once the server responds.
    */
-  public call<T>(method: string, params: object, waitForReply: boolean = true): Promise<T> | void {
+  public async call<T>(method: string, params: object, waitForReply: boolean = true): Promise<T | void> {
     const id = method === 'ready' ? magicReadyCallId : this.callCounter;
     const packet: IRPCMethod<any> = {
       type: 'method',
@@ -195,7 +223,10 @@ export class RPC extends EventEmitter {
       discard: !waitForReply,
     };
 
-    this.emit('sendMethod', packet);
+    const sendMethodEvent = new CustomEvent('sendMethod', {
+      detail: packet,
+    });
+    this.dispatchEvent(sendMethodEvent);
     this.post(packet);
 
     if (!waitForReply) {
@@ -217,7 +248,7 @@ export class RPC extends EventEmitter {
    * Tears down resources associated with the RPC client.
    */
   public destroy() {
-    this.emit('destroy');
+    this.dispatchEvent(new CustomEvent('destroy'));
     this.unsubscribeCallback();
   }
 
@@ -295,21 +326,34 @@ export class RPC extends EventEmitter {
 
       this.callCounter = 0;
       this.reorder.reset(packet.counter);
-      this.emit('isReady', true);
+
+      const isReadyEvent = new CustomEvent('isReady', {
+        detail: true,
+      });
+      this.dispatchEvent(isReadyEvent);
     }
 
     for (const p of this.reorder.append(packet)) {
-      this.emit('recvData', p);
+      const recvDataEvent = new CustomEvent('recvData', {
+        detail: p,
+      });
+      this.dispatchEvent(recvDataEvent);
       this.dispatchIncoming(p);
     }
   };
 
   private dispatchIncoming(packet: RPCMessageWithCounter<any>) {
     switch (packet.type) {
-      case 'method':
-        this.emit('recvMethod', packet);
-        if (this.listeners(packet.method).length > 0) {
-          this.emit(packet.method, packet);
+      case 'method': {
+        const recvMethodEvent = new CustomEvent('recvMethod', {
+          detail: packet,
+        });
+        this.dispatchEvent(recvMethodEvent);
+        if (this.exposedMethods.has(packet.method)) {
+          const methodEvent = new CustomEvent(packet.method, {
+            detail: packet,
+          });
+          this.dispatchEvent(methodEvent);
           return;
         }
 
@@ -321,10 +365,15 @@ export class RPC extends EventEmitter {
           result: null,
         });
         break;
-      case 'reply':
-        this.emit('recvReply', packet);
+      }
+      case 'reply': {
+        const recvReplyEvent = new CustomEvent('recvReply', {
+          detail: packet,
+        });
+        this.dispatchEvent(recvReplyEvent);
         this.handleReply(packet);
         break;
+      }
       default:
       // Ignore
     }
