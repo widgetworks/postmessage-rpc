@@ -1,8 +1,8 @@
 /**
  * Reorder is a utility responsible for reording incoming messages.
  */
-var Reorder = /** @class */ (function () {
-    function Reorder() {
+export class Reorder {
+    constructor() {
         /**
          * Last call we got which was in sequence..
          */
@@ -15,22 +15,22 @@ var Reorder = /** @class */ (function () {
     /**
      * Resets the queue and call counter to the given value.
      */
-    Reorder.prototype.reset = function (counter) {
+    reset(counter) {
         this.lastSequentialCall = counter - 1;
         this.queue = [];
-    };
+    }
     /**
      * Appends a message to the reorder queue. Returns all messages which
      * are good to send out.
      */
-    Reorder.prototype.append = function (packet) {
+    append(packet) {
         if (packet.counter <= this.lastSequentialCall + 1) {
-            var list = [packet];
+            const list = [packet];
             this.lastSequentialCall = packet.counter;
             this.replayQueue(list);
             return list;
         }
-        for (var i = 0; i < this.queue.length; i++) {
+        for (let i = 0; i < this.queue.length; i++) {
             if (this.queue[i].counter > packet.counter) {
                 this.queue.splice(i, 0, packet);
                 return [];
@@ -38,17 +38,15 @@ var Reorder = /** @class */ (function () {
         }
         this.queue.push(packet);
         return [];
-    };
-    Reorder.prototype.replayQueue = function (list) {
+    }
+    replayQueue(list) {
         while (this.queue.length) {
-            var next = this.queue[0];
+            const next = this.queue[0];
             if (next.counter > this.lastSequentialCall + 1) {
                 return;
             }
             list.push(this.queue.shift());
             this.lastSequentialCall = next.counter;
         }
-    };
-    return Reorder;
-}());
-export { Reorder };
+    }
+}

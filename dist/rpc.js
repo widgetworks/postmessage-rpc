@@ -1,19 +1,3 @@
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-import { EventEmitter } from 'eventemitter3';
 import { RPCError } from './error';
 import { Reorder } from './reorder';
 import { defaultRecievable, isRPCMessage, } from './types';
@@ -23,93 +7,100 @@ function objToError(obj) {
 /**
  * Magic ID used for the "ready" call.
  */
-var magicReadyCallId = -1;
+const magicReadyCallId = -1;
 /**
  * Primitive postMessage based RPC.
  */
-var RPC = /** @class */ (function (_super) {
-    __extends(RPC, _super);
+export class RPC extends EventTarget {
     /**
      * Creates a new RPC instance. Note: you should use the `rpc` singleton,
      * rather than creating this class directly, in your controls.
      */
-    function RPC(options) {
-        var _this = _super.call(this) || this;
-        _this.options = options;
+    constructor(options) {
+        super();
+        this.options = options;
         /**
          * A map of IDs to callbacks we'll fire whenever the remote frame responds.
          */
-        _this.calls = Object.create(null);
+        this.calls = Object.create(null);
         /**
          * Counter to track the sequence number of our calls for reordering.
          * Incremented each time we send a message.
          */
-        _this.callCounter = 0;
+        this.callCounter = 0;
         /**
          * Reorder utility for incoming messages.
          */
-        _this.reorder = new Reorder();
-        _this.listener = function (ev) {
+        this.reorder = new Reorder();
+        /**
+         * The name of all methods on this side that have been exposed to the other side.
+         */
+        this.exposedMethods = new Set();
+        this.listener = (ev) => {
             // If we got data that wasn't a string or could not be parsed, or was
             // from a different remote, it's not for us.
-            if (_this.options.origin && _this.options.origin !== '*' && ev.origin !== _this.options.origin) {
+            if (this.options.origin && this.options.origin !== '*' && ev.origin !== this.options.origin) {
                 return;
             }
-            var packet;
+            let packet;
             try {
                 packet = JSON.parse(ev.data);
             }
             catch (e) {
                 return;
             }
-            if (!isRPCMessage(packet) || packet.serviceID !== _this.options.serviceId) {
+            if (!isRPCMessage(packet) || packet.serviceID !== this.options.serviceId) {
                 return;
             }
             // postMessage does not guarantee message order, reorder messages as needed.
             // Reset the call counter when we get a "ready" so that the other end sees
             // calls starting from 0.
-            if (_this.isReadySignal(packet)) {
-                var params = packet.type === 'method' ? packet.params : packet.result;
+            if (this.isReadySignal(packet)) {
+                const params = packet.type === 'method' ? packet.params : packet.result;
                 if (params && params.protocolVersion) {
-                    _this.remoteProtocolVersion = params.protocolVersion;
+                    this.remoteProtocolVersion = params.protocolVersion;
                 }
                 else {
-                    _this.remoteProtocolVersion = _this.remoteProtocolVersion;
+                    this.remoteProtocolVersion = this.remoteProtocolVersion;
                 }
-                _this.callCounter = 0;
-                _this.reorder.reset(packet.counter);
-                _this.emit('isReady', true);
+                this.callCounter = 0;
+                this.reorder.reset(packet.counter);
+                const isReadyEvent = new CustomEvent('isReady', {
+                    detail: true,
+                });
+                this.dispatchEvent(isReadyEvent);
             }
-            for (var _i = 0, _a = _this.reorder.append(packet); _i < _a.length; _i++) {
-                var p = _a[_i];
-                _this.emit('recvData', p);
-                _this.dispatchIncoming(p);
+            for (const p of this.reorder.append(packet)) {
+                const recvDataEvent = new CustomEvent('recvData', {
+                    detail: p,
+                });
+                this.dispatchEvent(recvDataEvent);
+                this.dispatchIncoming(p);
             }
         };
-        _this.unsubscribeCallback = (options.receiver || defaultRecievable).readMessages(_this.listener);
+        this.unsubscribeCallback = (options.receiver || defaultRecievable).readMessages(this.listener);
         // Both sides will fire "ready" when they're set up. When either we get
         // a ready or the other side successfully responds that they're ready,
         // resolve the "ready" promise.
-        _this.isReady = new Promise(function (resolve) {
-            var response = { protocolVersion: options.protocolVersion || '1.0' };
-            _this.expose('ready', function () {
+        this.isReady = new Promise(resolve => {
+            const response = { protocolVersion: options.protocolVersion || '1.0' };
+            this.expose('ready', () => {
                 resolve();
                 return response;
             });
-            _this.call('ready', response)
+            this.call('ready', response)
                 .then(resolve)
                 .catch(resolve);
         });
-        return _this;
     }
     /**
      * Create instantiates a new RPC instance and waits until it's ready
      * before returning.
      */
-    RPC.prototype.create = function (options) {
-        var rpc = new RPC(options);
-        return rpc.isReady.then(function () { return rpc; });
-    };
+    create(options) {
+        const rpc = new RPC(options);
+        return rpc.isReady.then(() => rpc);
+    }
     /**
      * Attaches a method callable by the other window, to this one. The handler
      * function will be invoked with whatever the other window gives us. Can
@@ -118,40 +109,54 @@ var RPC = /** @class */ (function (_super) {
      * @param {string} method
      * @param {function(params: any): Promise.<*>|*} handler
      */
-    RPC.prototype.expose = function (method, handler) {
-        var _this = this;
-        this.on(method, function (data) {
+    expose(method, handler) {
+        this.exposedMethods.add(method);
+        this.on(method, (event) => {
+            const data = event.detail;
             if (data.discard) {
                 handler(data.params);
                 return;
             }
             // tslint:disable-next-line
-            new Promise(function (resolve) { return resolve(handler(data.params)); })
-                .then(function (result) {
-                return ({
-                    type: 'reply',
-                    serviceID: _this.options.serviceId,
-                    id: data.id,
-                    result: result,
+            new Promise(resolve => resolve(handler(data.params)))
+                .then(result => ({
+                type: 'reply',
+                serviceID: this.options.serviceId,
+                id: data.id,
+                result,
+            }))
+                .catch((err) => ({
+                type: 'reply',
+                serviceID: this.options.serviceId,
+                id: data.id,
+                error: err instanceof RPCError
+                    ? err.toReplyError()
+                    : { code: 0, message: err.stack || err.message },
+            }))
+                .then(packet => {
+                const sendReplyEvent = new CustomEvent('sendReply', {
+                    detail: packet,
                 });
-            })
-                .catch(function (err) {
-                return ({
-                    type: 'reply',
-                    serviceID: _this.options.serviceId,
-                    id: data.id,
-                    error: err instanceof RPCError
-                        ? err.toReplyError()
-                        : { code: 0, message: err.stack || err.message },
-                });
-            })
-                .then(function (packet) {
-                _this.emit('sendReply', packet);
-                _this.post(packet);
+                this.dispatchEvent(sendReplyEvent);
+                this.post(packet);
             });
         });
         return this;
-    };
+    }
+    /**
+     * Shorthand for `addEventListener()` that only deals with to CustomEvents.
+     */
+    on(type, callback, options) {
+        const cb = (_event) => {
+            if (!('detail' in _event)) {
+                // Skip invalid event call
+                return;
+            }
+            const event = _event;
+            callback(event);
+        };
+        this.addEventListener(type, cb, options);
+    }
     /**
      * Makes an RPC call out to the target window.
      *
@@ -161,25 +166,26 @@ var RPC = /** @class */ (function (_super) {
      * @return {Promise.<object> | undefined} If waitForReply is true, a
      * promise is returned that resolves once the server responds.
      */
-    RPC.prototype.call = function (method, params, waitForReply) {
-        var _this = this;
-        if (waitForReply === void 0) { waitForReply = true; }
-        var id = method === 'ready' ? magicReadyCallId : this.callCounter;
-        var packet = {
+    call(method, params, waitForReply = true) {
+        const id = method === 'ready' ? magicReadyCallId : this.callCounter;
+        const packet = {
             type: 'method',
             serviceID: this.options.serviceId,
-            id: id,
-            params: params,
-            method: method,
+            id,
+            params,
+            method,
             discard: !waitForReply,
         };
-        this.emit('sendMethod', packet);
+        const sendMethodEvent = new CustomEvent('sendMethod', {
+            detail: packet,
+        });
+        this.dispatchEvent(sendMethodEvent);
         this.post(packet);
         if (!waitForReply) {
             return;
         }
-        return new Promise(function (resolve, reject) {
-            _this.calls[id] = function (err, res) {
+        return new Promise((resolve, reject) => {
+            this.calls[id] = (err, res) => {
                 if (err) {
                     reject(err);
                 }
@@ -188,24 +194,24 @@ var RPC = /** @class */ (function (_super) {
                 }
             };
         });
-    };
+    }
     /**
      * Tears down resources associated with the RPC client.
      */
-    RPC.prototype.destroy = function () {
-        this.emit('destroy');
+    destroy() {
+        this.dispatchEvent(new CustomEvent('destroy'));
         this.unsubscribeCallback();
-    };
+    }
     /**
      * Returns the protocol version that the remote client implements. This
      * will return `undefined` until we get a `ready` event.
      * @return {string | undefined}
      */
-    RPC.prototype.remoteVersion = function () {
+    remoteVersion() {
         return this.remoteProtocolVersion;
-    };
-    RPC.prototype.handleReply = function (packet) {
-        var handler = this.calls[packet.id];
+    }
+    handleReply(packet) {
+        const handler = this.calls[packet.id];
         if (!handler) {
             return;
         }
@@ -216,12 +222,12 @@ var RPC = /** @class */ (function (_super) {
             handler(null, packet.result);
         }
         delete this.calls[packet.id];
-    };
-    RPC.prototype.post = function (message) {
+    }
+    post(message) {
         message.counter = this.callCounter++;
         this.options.target.postMessage(JSON.stringify(message), this.options.origin || '*');
-    };
-    RPC.prototype.isReadySignal = function (packet) {
+    }
+    isReadySignal(packet) {
         if (packet.type === 'method' && packet.method === 'ready') {
             return true;
         }
@@ -229,31 +235,40 @@ var RPC = /** @class */ (function (_super) {
             return true;
         }
         return false;
-    };
-    RPC.prototype.dispatchIncoming = function (packet) {
+    }
+    dispatchIncoming(packet) {
         switch (packet.type) {
-            case 'method':
-                this.emit('recvMethod', packet);
-                if (this.listeners(packet.method).length > 0) {
-                    this.emit(packet.method, packet);
+            case 'method': {
+                const recvMethodEvent = new CustomEvent('recvMethod', {
+                    detail: packet,
+                });
+                this.dispatchEvent(recvMethodEvent);
+                if (this.exposedMethods.has(packet.method)) {
+                    const methodEvent = new CustomEvent(packet.method, {
+                        detail: packet,
+                    });
+                    this.dispatchEvent(methodEvent);
                     return;
                 }
                 this.post({
                     type: 'reply',
                     serviceID: this.options.serviceId,
                     id: packet.id,
-                    error: { code: 4003, message: "Unknown method name \"" + packet.method + "\"" },
+                    error: { code: 4003, message: `Unknown method name "${packet.method}"` },
                     result: null,
                 });
                 break;
-            case 'reply':
-                this.emit('recvReply', packet);
+            }
+            case 'reply': {
+                const recvReplyEvent = new CustomEvent('recvReply', {
+                    detail: packet,
+                });
+                this.dispatchEvent(recvReplyEvent);
                 this.handleReply(packet);
                 break;
+            }
             default:
             // Ignore
         }
-    };
-    return RPC;
-}(EventEmitter));
-export { RPC };
+    }
+}

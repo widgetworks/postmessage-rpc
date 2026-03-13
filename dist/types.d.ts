@@ -1,11 +1,11 @@
 /**
  * Defines any message sentable over RPC.
  */
-export declare type RPCMessage<T> = IRPCMethod<T> | IRPCReply<T>;
+export type RPCMessage<T> = IRPCMethod<T> | IRPCReply<T>;
 /**
  * Defines an RPC message with a sequence counter for reordering.
  */
-export declare type RPCMessageWithCounter<T> = RPCMessage<T> & {
+export type RPCMessageWithCounter<T> = RPCMessage<T> & {
     counter: number;
 };
 /**
@@ -71,3 +71,4 @@ export interface IReceivable {
  * Default `IRecievable` implementation that listens on the window.
  */
 export declare const defaultRecievable: IReceivable;
+export type CustomEventListener<T = unknown> = (evt: CustomEvent<T>) => void;

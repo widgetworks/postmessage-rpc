@@ -9,9 +9,9 @@ export function isRPCMessage(data) {
 /**
  * Default `IRecievable` implementation that listens on the window.
  */
-export var defaultRecievable = {
-    readMessages: function (callback) {
+export const defaultRecievable = {
+    readMessages(callback) {
         window.addEventListener('message', callback);
-        return function () { return window.removeEventListener('message', callback); };
+        return () => window.removeEventListener('message', callback);
     },
 };

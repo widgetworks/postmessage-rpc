@@ -1,5 +1,4 @@
-import { EventEmitter } from 'eventemitter3';
-import { IPostable, IReceivable } from './types';
+import { CustomEventListener, IPostable, IReceivable } from './types';
 /**
  * IRPCOptions are used to construct an RPc instance.
  */
@@ -32,7 +31,7 @@ export interface IRPCOptions {
 /**
  * Primitive postMessage based RPC.
  */
-export declare class RPC extends EventEmitter {
+export declare class RPC extends EventTarget {
     private readonly options;
     /**
      * Promise that resolves once the RPC connection is established.
@@ -60,6 +59,10 @@ export declare class RPC extends EventEmitter {
      */
     private unsubscribeCallback;
     /**
+     * The name of all methods on this side that have been exposed to the other side.
+     */
+    private exposedMethods;
+    /**
      * Creates a new RPC instance. Note: you should use the `rpc` singleton,
      * rather than creating this class directly, in your controls.
      */
@@ -78,6 +81,10 @@ export declare class RPC extends EventEmitter {
      * @param {function(params: any): Promise.<*>|*} handler
      */
     expose<T>(method: string, handler: (params: T) => Promise<any> | any): this;
+    /**
+     * Shorthand for `addEventListener()` that only deals with to CustomEvents.
+     */
+    on<T = unknown>(type: string, callback: CustomEventListener<T>, options?: AddEventListenerOptions | boolean): void;
     call<T>(method: string, params: object, waitForReply?: true): Promise<T>;
     call(method: string, params: object, waitForReply: false): void;
     /**
